@@ -1,0 +1,37 @@
+active-cap: 24
+correction-interval-ticks: 20
+
+audience:
+  view-distance: 2
+  simulation-distance: 2
+  allow-chat: false
+  allow-command: false
+  allow-interact: false
+  allow-move: false
+  allow-look-packet: false
+  block-flying-packet: false
+  invulnerable: true
+  collision: false
+  pickup-items: false
+
+active:
+  view-distance: 6
+  simulation-distance: 3
+  allow-chat: true
+  allow-command: true
+  allow-interact: true
+  allow-move: true
+
+visibility:
+  audience-see-audience: false
+  audience-see-active: true
+  active-see-audience: true
+  active-see-active: true
+
+position:
+  world: world
+  seats:
+    p1: "0.5, 80.0, 0.5, 0.0, 0.0"
+    p2: "1.5, 80.0, 0.5, 0.0, 0.0"
+    p3: "2.5, 80.0, 0.5, 0.0, 0.0"
+    p4: "3.5, 80.0, 0.5, 0.0, 0.0"

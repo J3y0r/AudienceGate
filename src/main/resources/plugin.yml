@@ -1,0 +1,28 @@
+name: AudienceGate
+description: AudienceGate high-player-count runtime state optimizer
+prefix: AudienceGate
+version: '${version}'
+
+main: me.jeyor.audienceGate.AudienceGate
+api-version: '1.21'
+load: STARTUP
+
+depend: [ ProtocolLib ]
+
+authors: [ J3y0r ]
+website: https://github.com/J3y0r
+
+commands:
+  audiencegate:
+    description: Manage AudienceGate player states
+    usage: /audiencegate <active|audience|status|reload> [player]
+    aliases: [ ag ]
+    permission: audiencegate.use
+
+permissions:
+  audiencegate.use:
+    description: Allows using basic AudienceGate commands
+    default: true
+  audiencegate.admin:
+    description: Allows changing player states and reloading AudienceGate
+    default: op
