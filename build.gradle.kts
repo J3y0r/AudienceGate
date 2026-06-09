@@ -14,6 +14,9 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     compileOnly("net.dmulloy2:ProtocolLib:5.4.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
 }
 
 kotlin {
@@ -23,6 +26,10 @@ kotlin {
 tasks {
     build {
         dependsOn(shadowJar)
+    }
+
+    test {
+        useJUnitPlatform()
     }
 
     runServer {

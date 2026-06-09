@@ -4,16 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AudienceGate is a Kotlin/Paper Minecraft plugin targeting Paper/Purpur 1.21.x. Its purpose is to support high player counts by splitting online players into two runtime states:
+AudienceGate is a Kotlin/Paper Minecraft plugin targeting Paper/Purpur 1.21.x. It supports high-player-count single-server events by splitting players into two runtime states:
 
 - `AUDIENCE`: static, low-view-distance, non-interactive spectators assigned to configured seats.
-- `ACTIVE`: limited-cap participants who can move/interact normally within the plugin's constraints.
+- `ACTIVE`: capped participants who can move and interact normally within plugin constraints.
 
-The plugin depends on ProtocolLib for client packet filtering and uses Paper/Bukkit APIs for player state, event interception, scoreboards, visibility, and commands.
+The plugin depends on ProtocolLib for client packet filtering and uses Paper/Bukkit APIs for player state, event interception, scoreboard collision rules, visibility, commands, and scheduled correction.
+
+`PLAN.md` is the product/specification document for the intended 200-player optimization behavior and should be treated as the source of truth for feature completeness.
 
 ## Common Commands
 
-This repository currently has Gradle build files and `gradle/wrapper/gradle-wrapper.properties`, but does **not** include `gradlew`, `gradlew.bat`, or `gradle-wrapper.jar`. Therefore wrapper commands will not work until the wrapper files are restored/generated.
+This repository has Gradle build files and `gradle/wrapper/gradle-wrapper.properties`, but currently does **not** include `gradlew`, `gradlew.bat`, or `gradle/wrapper/gradle-wrapper.jar`. Do not assume wrapper commands work until those files are restored/generated.
 
 If Gradle is available globally:
 
@@ -23,11 +25,11 @@ gradle shadowJar
 gradle runServer
 ```
 
-Expected outputs:
+Expected behavior:
 
-- `gradle build`: compiles the plugin and runs the Shadow JAR task because `build` depends on `shadowJar`.
+- `gradle build`: compiles the plugin and runs `shadowJar` because `build` depends on `shadowJar`.
 - `gradle shadowJar`: creates the deployable plugin JAR.
-- `gradle runServer`: starts a local Paper 1.21.1 server with the plugin, using Java 21 and the configured run-paper task.
+- `gradle runServer`: starts a local Paper 1.21.1 server with Java 21 and `-Xms2G -Xmx2G -Dcom.mojang.eula.agree=true`.
 
 There is currently no test source set or test framework usage in the repository, so there is no supported single-test command yet.
 
@@ -40,13 +42,17 @@ Key build settings are in `build.gradle.kts`:
 - run-paper plugin: `xyz.jpenilla.run-paper` `3.0.2`
 - Paper API: `io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT` as `compileOnly`
 - ProtocolLib: `net.dmulloy2:ProtocolLib:5.4.0` as `compileOnly`
+- Kotlin stdlib: `org.jetbrains.kotlin:kotlin-stdlib-jdk8`
 - Java toolchain: 21
 - Local run server Minecraft version: 1.21.1
 
-Plugin metadata is in `src/main/resources/plugin.yml`. It declares:
+`gradle.properties` enables Gradle configuration cache, build cache, and parallel execution.
+
+Plugin metadata is in `src/main/resources/plugin.yml`:
 
 - Main class: `me.jeyor.audienceGate.AudienceGate`
 - API version: `1.21`
+- Load phase: `STARTUP`
 - Hard dependency: `ProtocolLib`
 - Command: `/audiencegate` with alias `/ag`
 - Permissions: `audiencegate.use`, `audiencegate.admin`
@@ -58,10 +64,10 @@ Default plugin configuration is in `src/main/resources/config.yml`.
 Important sections:
 
 - `active-cap`: maximum number of `ACTIVE` players.
-- `correction-interval-ticks`: interval for teleporting audience players back to their seats.
-- `audience`: view distance, simulation distance, interaction/chat/command/move permissions, invulnerability, collision, pickup behavior.
+- `correction-interval-ticks`: interval for teleporting audience players back to their assigned seats.
+- `audience`: view distance, simulation distance, chat/command/interact/move permissions, packet behavior, invulnerability, collision, pickup behavior.
 - `active`: active player view/simulation distance and behavior flags.
-- `visibility`: player visibility matrix between audience and active players.
+- `visibility`: visibility matrix between audience and active players.
 - `position.world` and `position.seats`: audience seat locations.
 
 Seat values are comma-separated:
@@ -70,44 +76,43 @@ Seat values are comma-separated:
 x, y, z, yaw, pitch[, world]
 ```
 
-If the optional world is omitted, `position.world` is used.
+If the optional world is omitted, `position.world` is used. If no configured seats load, the plugin falls back to the player's world spawn location.
 
 ## Architecture
 
-The implementation is intentionally compact and currently centered in `src/main/kotlin/me/jeyor/audienceGate/AudienceGate.kt`.
+The current implementation is intentionally compact and centered in `src/main/kotlin/me/jeyor/audienceGate/AudienceGate.kt`.
 
 Main responsibilities:
 
 - `AudienceGate` plugin class:
-  - Manages lifecycle (`onEnable`, `onDisable`).
-  - Tracks player state using UUID sets for audience and active players.
-  - Tracks assigned audience seats with a UUID-to-`Location` map.
+  - Manages lifecycle with `onEnable`/`onDisable`.
+  - Tracks runtime state using UUID sets for audience and active players.
+  - Tracks assigned audience seats with a UUID-to-`Location` map plus occupied seat keys.
   - Registers Bukkit/Paper event handlers.
   - Registers ProtocolLib packet filters.
   - Implements `/audiencegate` and `/ag` through `TabExecutor`.
 
 - Player state transitions:
-  - `makeAudience(player)`: removes active state, assigns a seat, freezes/restricts the player, applies low distances, disables collision, teleports to the seat, updates visibility.
-  - `makeActive(player, ignoreCap = false)`: enforces `active-cap`, removes audience state/seat, restores active properties, updates visibility.
+  - `makeAudience(player)`: removes active state, assigns a seat, freezes/restricts the player, applies audience distances/properties, disables collision through the scoreboard team, teleports to the seat, and updates visibility.
+  - `makeActive(player, ignoreCap = false)`: enforces `active-cap`, releases the audience seat, restores active player properties, removes the no-collision team entry, and updates visibility.
   - `resetPlayer(player)`: restores basic player properties during plugin disable.
 
 - Audience control layers:
-  - Event layer: cancels movement, interaction, block break/place, drop/pickup, inventory changes, chat, commands, damage, hunger, offhand swap, held item change.
-  - Packet layer: ProtocolLib cancels audience movement/look/interaction/held-slot packets.
+  - Event layer: cancels movement, interaction, block break/place, drop/pickup, inventory changes, chat, commands, damage, hunger, offhand swap, and held item change as configured.
+  - Packet layer: ProtocolLib cancels audience movement/look/interaction/item-slot packets. `audience.block-flying-packet` controls whether `PacketType.Play.Client.FLYING` is also blocked.
   - Sync layer: repeating task teleports audience players back to assigned seats.
 
 - Visibility:
-  - `showMatrixFor(viewer)` applies the configured visibility matrix using `showPlayer`/`hidePlayer`.
+  - `showMatrixFor(viewer)` and `refreshVisibilityForChangedPlayer(changed)` apply the configured visibility matrix using `showPlayer`/`hidePlayer`.
   - Audience-to-audience visibility is disabled by default to reduce player entity tracking/broadcast pressure.
 
 - Configuration:
   - `GateSettings.fromConfig(plugin)` reads `config.yml` into an immutable settings data class.
-  - Seat parsing supports default world plus optional per-seat world override.
+  - Seat parsing supports a default world plus optional per-seat world override.
 
 ## Current Development Notes
 
-- The project is not a Git repository in the current working directory.
-- The Gradle wrapper is incomplete; do not assume `./gradlew` works.
 - ProtocolLib is required at runtime because `plugin.yml` declares `depend: [ ProtocolLib ]` and packet filtering is part of the core behavior.
-- The current codebase has no tests; validation is expected to begin with restoring a working Gradle entrypoint, compiling, then running through `runServer` or a real Paper/Purpur server.
-- `PLAN.md` is the product/specification document for the intended 200-player optimization behavior. Use it as the source of truth when deciding whether AudienceGate behavior is complete.
+- The Gradle wrapper is incomplete; use global `gradle` or restore the wrapper files before using `./gradlew`.
+- The codebase currently has no tests; validation should start with compiling, then using `gradle runServer` or a real Paper/Purpur server.
+- No README, Cursor rules, or Copilot instruction files are present in this repository at the time this file was updated.

@@ -9,7 +9,7 @@ audience:
   allow-interact: false
   allow-move: false
   allow-look-packet: false
-  block-flying-packet: false
+  block-flying-packet: true
   invulnerable: true
   collision: false
   pickup-items: false
@@ -31,7 +31,16 @@ visibility:
 position:
   world: world
   seats:
-    p1: "0.5, 80.0, 0.5, 0.0, 0.0"
-    p2: "1.5, 80.0, 0.5, 0.0, 0.0"
-    p3: "2.5, 80.0, 0.5, 0.0, 0.0"
-    p4: "3.5, 80.0, 0.5, 0.0, 0.0"
+    admin-preview-1: "0.5, 80.0, 0.5, 0.0, 0.0"
+    admin-preview-2: "1.5, 80.0, 0.5, 0.0, 0.0"
+    admin-preview-3: "2.5, 80.0, 0.5, 0.0, 0.0"
+    admin-preview-4: "3.5, 80.0, 0.5, 0.0, 0.0"
+  generated-grid:
+    enabled: true
+    origin: "0.5, 80.0, 0.5, 0.0, 0.0"
+    rows: 11
+    columns: 16
+    row-spacing: 1.0
+    column-spacing: 1.0
+    yaw: 0.0
+    pitch: 0.0
